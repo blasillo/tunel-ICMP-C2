@@ -25,6 +25,10 @@ services:
       - /dev/net/tun:/dev/net/tun
     sysctls:
       - net.ipv4.ip_forward=1
+    volumes:
+      - ./comandos:/data/comandos
+      - ./resultados:/data/resultados
+      - ./valid_ids:/data/valid_ids
     ports:
       - "8080:80"
 
@@ -44,13 +48,10 @@ services:
     command: >
       sh -c "
         apk add --no-cache iptables tcpdump &&
-        echo '[*] Aplicando filtro: solo ICMP permitido' &&
         iptables -F FORWARD &&
         iptables -P FORWARD DROP &&
         iptables -A FORWARD -p icmp -j ACCEPT &&
-        echo '[*] Reglas iptables aplicadas:' &&
-        iptables -L FORWARD -v &&
-        echo '[*] Router activo - capturando trafico ICMP...' &&
+        echo '[*] Router: solo ICMP permitido' &&
         tcpdump -i any -n icmp
       "
 
@@ -71,3 +72,4 @@ services:
     environment:
       - SERVER_IP=172.21.0.10
       - ROUTER_IP=172.22.0.2
+      - CLIENT_ID=cliente-001
