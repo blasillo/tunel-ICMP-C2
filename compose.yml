@@ -1,0 +1,73 @@
+networks:
+  server-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+  client-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/24
+
+services:
+
+  hans-server:
+    build: ./server
+    container_name: hans-server
+    networks:
+      server-net:
+        ipv4_address: 172.21.0.10
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      - net.ipv4.ip_forward=1
+    ports:
+      - "8080:80"
+
+  router:
+    image: alpine:3.19
+    container_name: router
+    networks:
+      server-net:
+        ipv4_address: 172.21.0.2
+      client-net:
+        ipv4_address: 172.22.0.2
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    sysctls:
+      - net.ipv4.ip_forward=1
+    command: >
+      sh -c "
+        apk add --no-cache iptables tcpdump &&
+        echo '[*] Aplicando filtro: solo ICMP permitido' &&
+        iptables -F FORWARD &&
+        iptables -P FORWARD DROP &&
+        iptables -A FORWARD -p icmp -j ACCEPT &&
+        echo '[*] Reglas iptables aplicadas:' &&
+        iptables -L FORWARD -v &&
+        echo '[*] Router activo - capturando trafico ICMP...' &&
+        tcpdump -i any -n icmp
+      "
+
+  hans-client:
+    build: ./client
+    container_name: hans-client
+    depends_on:
+      - hans-server
+      - router
+    networks:
+      client-net:
+        ipv4_address: 172.22.0.20
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - SERVER_IP=172.21.0.10
+      - ROUTER_IP=172.22.0.2
